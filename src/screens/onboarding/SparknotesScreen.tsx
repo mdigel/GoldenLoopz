@@ -29,7 +29,7 @@ const SPARKNOTES = [
     text: 'On the side, he built a Youtube channel.\nNow he\'s got 6.5M subscribers and is very much a **millionaire.**',
   },
   {
-    text: 'He made **this video** sharing how he did it and how you can too. \n(The full video can be found in your profile)',
+    text: 'He made **this video** sharing how he built a business part-time and how you can too. Here are the key takeaways... \n(The full video can be found in your profile.)',
     image: require('../../../assets/YouTubeVideo.png'),
   },
   {
