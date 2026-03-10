@@ -20,6 +20,10 @@ interface LogState {
   getLogsForMonth: (year: number, month: number) => DailyLog[];
   getLogsForYear: (year?: number) => DailyLog[];
 
+  // Dev
+  loadDemoData: () => void;
+  clearDemoData: () => void;
+
   // Computed
   getWeekTotals: (date?: Date) => WeekTotals;
   getYearTotals: (year?: number) => YearTotals;
@@ -65,6 +69,14 @@ const createLogStore: StateCreator<LogState> = (set, get) => ({
   loadLogs: async () => {
     set({ isLoading: true });
     set({ isLoading: false });
+  },
+
+  loadDemoData: () => {
+    set({ logs: generateDummyLogs() });
+  },
+
+  clearDemoData: () => {
+    set({ logs: {} });
   },
 
   getTodayLog: () => {

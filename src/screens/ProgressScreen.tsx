@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { X } from 'lucide-react-native';
 import { useAnalytics, ANALYTICS_EVENTS } from '../lib/analytics';
+import { useOnboardingStore } from '../state/onboardingStore';
 import { colors } from '../constants/colors';
 import type { ProgressTabType } from '../navigation/types';
 import WeeklyProgress from '../components/progress/WeeklyProgress';
@@ -39,6 +41,8 @@ function TabButton({ label, isActive, onPress }: TabButtonProps) {
 export default function ProgressScreen() {
   const [activeTab, setActiveTab] = useState<ProgressTabType>('week');
   const { trackScreen, trackEvent } = useAnalytics();
+  const hasSeenProgressBanner = useOnboardingStore((s) => s.hasSeenProgressBanner);
+  const dismissProgressBanner = useOnboardingStore((s) => s.dismissProgressBanner);
 
   useEffect(() => {
     trackScreen(ANALYTICS_EVENTS.SCREEN_PROGRESS);
@@ -74,6 +78,24 @@ export default function ProgressScreen() {
           />
         </View>
       </View>
+
+      {/* First-time banner */}
+      {!hasSeenProgressBanner && (
+        <View style={styles.banner}>
+          <View style={styles.bannerContent}>
+            <Text style={styles.bannerText}>
+              These are different visualizations of your data. Tap around to explore which view is most useful for you. After a few weeks of logging, this is where it all comes together.
+            </Text>
+          </View>
+          <TouchableOpacity
+            onPress={dismissProgressBanner}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            style={styles.bannerClose}
+          >
+            <X size={18} color={colors.text.secondary} />
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Tab Navigation */}
       <View style={styles.tabContainer}>
@@ -118,6 +140,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 16,
+  },
+  banner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.gold[50],
+    marginHorizontal: 16,
+    marginBottom: 12,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  bannerContent: {
+    flex: 1,
+  },
+  bannerText: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.text.primary,
+  },
+  bannerClose: {
+    padding: 2,
   },
   headerLogo: {
     width: 56,

@@ -162,6 +162,12 @@ export default function SparknotesScreen({ onNext, onBack }: SparknotesScreenPro
               ))}
             </View>
           </View>
+
+          {currentIndex < SPARKNOTES.length - 1 && (
+            <TouchableOpacity onPress={onNext} style={styles.skipButton}>
+              <Text style={styles.skipText}>Skip</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -261,6 +267,17 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
+  },
+  skipButton: {
+    alignSelf: 'center',
+    marginTop: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 24,
+  },
+  skipText: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: colors.text.muted,
   },
   footer: {
     paddingHorizontal: 24,

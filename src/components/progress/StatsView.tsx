@@ -2,6 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { useLogStore } from '../../state/logStore';
 import { useCustomMetricsStore, formatMetricValue } from '../../state/customMetricsStore';
+import { useOnboardingStore } from '../../state/onboardingStore';
+import { useGoalsStore } from '../../state/goalsStore';
 import { colors, METRICS } from '../../constants/colors';
 import { formatMinutesToDisplay } from '../../lib/dateUtils';
 import { CustomMetric } from '../../types';
@@ -49,9 +51,31 @@ interface GoldenHoursBlockProps {
   buildingMinutes: number;
   marketingMinutes: number;
   learningMinutes: number;
+  goalTotalMinutes?: number;
+  goalBuildingMinutes?: number;
+  goalMarketingMinutes?: number;
+  goalLearningMinutes?: number;
 }
 
-function GoldenHoursBlock({ totalMinutes, buildingMinutes, marketingMinutes, learningMinutes }: GoldenHoursBlockProps) {
+function GoalComparisonValue({ minutes, goalMinutes, color }: { minutes: number; goalMinutes?: number; color: string }) {
+  if (goalMinutes == null || goalMinutes <= 0) {
+    return <Text style={[styles.breakdownValue, { color }]}>{formatMinutesToDisplay(minutes)}</Text>;
+  }
+  const meetsGoal = minutes >= goalMinutes;
+  return (
+    <View style={styles.goalValueRow}>
+      <Text style={[styles.breakdownValue, { color: meetsGoal ? colors.success : color }]}>
+        {formatMinutesToDisplay(minutes)}
+      </Text>
+      <Text style={styles.goalDivider}> / </Text>
+      <Text style={styles.goalTarget}>{formatMinutesToDisplay(goalMinutes)}</Text>
+    </View>
+  );
+}
+
+function GoldenHoursBlock({ totalMinutes, buildingMinutes, marketingMinutes, learningMinutes, goalTotalMinutes, goalBuildingMinutes, goalMarketingMinutes, goalLearningMinutes }: GoldenHoursBlockProps) {
+  const showGoals = goalTotalMinutes != null && goalTotalMinutes > 0;
+  const meetsTotal = showGoals && totalMinutes >= goalTotalMinutes!;
   return (
     <View style={styles.sectionBlock}>
       <View style={styles.goldenHoursHeader}>
@@ -62,19 +86,26 @@ function GoldenHoursBlock({ totalMinutes, buildingMinutes, marketingMinutes, lea
         />
         <Text style={styles.sectionHeader}>Golden Hours</Text>
       </View>
-      <Text style={styles.totalValue}>{formatMinutesToDisplay(totalMinutes)}</Text>
+      {showGoals ? (
+        <View style={styles.totalGoalRow}>
+          <Text style={[styles.totalValue, meetsTotal && { color: colors.success }]}>{formatMinutesToDisplay(totalMinutes)}</Text>
+          <Text style={styles.totalGoalTarget}> / {formatMinutesToDisplay(goalTotalMinutes!)}</Text>
+        </View>
+      ) : (
+        <Text style={styles.totalValue}>{formatMinutesToDisplay(totalMinutes)}</Text>
+      )}
       <View style={styles.breakdownList}>
         <View style={styles.breakdownRow}>
-          <Text style={styles.breakdownLabel}>Building</Text>
-          <Text style={[styles.breakdownValue, { color: METRICS.building.color }]}>{formatMinutesToDisplay(buildingMinutes)}</Text>
+          <Text style={styles.breakdownLabel}>Marketing</Text>
+          <GoalComparisonValue minutes={marketingMinutes} goalMinutes={goalMarketingMinutes} color={METRICS.marketing.color} />
         </View>
         <View style={styles.breakdownRow}>
-          <Text style={styles.breakdownLabel}>Marketing</Text>
-          <Text style={[styles.breakdownValue, { color: METRICS.marketing.color }]}>{formatMinutesToDisplay(marketingMinutes)}</Text>
+          <Text style={styles.breakdownLabel}>Building</Text>
+          <GoalComparisonValue minutes={buildingMinutes} goalMinutes={goalBuildingMinutes} color={METRICS.building.color} />
         </View>
         <View style={styles.breakdownRow}>
           <Text style={styles.breakdownLabel}>Learning</Text>
-          <Text style={[styles.breakdownValue, { color: METRICS.levelingUp.color }]}>{formatMinutesToDisplay(learningMinutes)}</Text>
+          <GoalComparisonValue minutes={learningMinutes} goalMinutes={goalLearningMinutes} color={METRICS.levelingUp.color} />
         </View>
       </View>
     </View>
@@ -94,9 +125,10 @@ interface DynamicMetricsBlockProps {
   totals: any;
   showAsAverage?: boolean; // For weekly averages
   weeksElapsed?: number;
+  customMetricGoals?: Record<string, number>; // For showing goal comparison
 }
 
-function DynamicMetricsBlock({ metrics, totals, showAsAverage, weeksElapsed = 1 }: DynamicMetricsBlockProps) {
+function DynamicMetricsBlock({ metrics, totals, showAsAverage, weeksElapsed = 1, customMetricGoals }: DynamicMetricsBlockProps) {
   if (metrics.length === 0) return null;
 
   return (
@@ -107,7 +139,7 @@ function DynamicMetricsBlock({ metrics, totals, showAsAverage, weeksElapsed = 1 
           let value = getMetricTotal(metric, totals);
 
           // Calculate average if needed
-          if (showAsAverage && weeksElapsed > 1) {
+          if (showAsAverage && weeksElapsed > 0) {
             value = value / weeksElapsed;
           }
 
@@ -121,10 +153,23 @@ function DynamicMetricsBlock({ metrics, totals, showAsAverage, weeksElapsed = 1 
             displayValue = formatMetricValue(Math.round(value), metric.unitType);
           }
 
+          const goal = customMetricGoals?.[metric.id];
+          const hasGoal = goal != null && goal > 0;
+          const meetsGoal = hasGoal && (metric.category === 'negative' ? value <= goal! : value >= goal!);
+          const goalDisplay = hasGoal ? formatMetricValue(goal!, metric.unitType) : null;
+
           return (
             <View key={metric.id} style={styles.breakdownRow}>
               <Text style={styles.breakdownLabel}>{metric.name}</Text>
-              <Text style={styles.breakdownValue}>{displayValue}</Text>
+              {hasGoal ? (
+                <View style={styles.goalValueRow}>
+                  <Text style={[styles.breakdownValue, meetsGoal && { color: colors.success }]}>{displayValue}</Text>
+                  <Text style={styles.goalDivider}> / </Text>
+                  <Text style={styles.goalTarget}>{goalDisplay}</Text>
+                </View>
+              ) : (
+                <Text style={styles.breakdownValue}>{displayValue}</Text>
+              )}
             </View>
           );
         })}
@@ -141,17 +186,70 @@ export default function StatsView() {
   const allTimeTotals = getAllTimeTotals();
   const customMetrics = useCustomMetricsStore((state) => state.metrics);
   const activeCustomMetrics = useMemo(() => customMetrics.filter(m => m.isActive), [customMetrics]);
+  const onboardingDate = useOnboardingStore((state) => state.onboardingCompletedDate);
+  const goals = useGoalsStore((state) => state.goals);
 
-  // Calculate weekly averages (year to date), excluding vacation days
-  const totalDays = yearTotals.totalDays || 1;
-  const vacationDays = yearTotals.vacationDays || 0;
-  const effectiveDays = Math.max(1, totalDays - vacationDays);
-  const effectiveWeeks = Math.max(1, Math.ceil(effectiveDays / 7));
+  // Goal minutes for weekly comparison (goals are stored in hours)
+  const goalBuildingMinutes = goals.buildingHours * 60;
+  const goalMarketingMinutes = goals.marketingHours * 60;
+  const goalLearningMinutes = goals.levelingUpHours * 60;
+  const goalTotalMinutes = goalBuildingMinutes + goalMarketingMinutes + goalLearningMinutes;
+
+  // Custom metric goals from the metrics themselves
+  const customMetricGoals = useMemo(() => {
+    const goals: Record<string, number> = {};
+    activeCustomMetrics.forEach((m) => {
+      if (m.weeklyGoal > 0) {
+        goals[m.id] = m.weeklyGoal;
+      }
+    });
+    return goals;
+  }, [activeCustomMetrics]);
+
+  // Calculate weekly averages based on actual data range for current year
+  const logs = useLogStore((state) => state.logs);
+  const effectiveWeeks = useMemo(() => {
+    const now = new Date();
+    const yearStart = new Date(now.getFullYear(), 0, 1);
+
+    // Find earliest log date in current year
+    const yearLogDates = Object.keys(logs)
+      .filter((date) => date.startsWith(String(now.getFullYear())))
+      .sort();
+
+    if (yearLogDates.length === 0) return 1;
+
+    const earliestLogDate = new Date(yearLogDates[0] + 'T00:00:00');
+    const startDate = earliestLogDate < yearStart ? yearStart : earliestLogDate;
+
+    const daysSinceStart = Math.max(1, Math.ceil((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)));
+    const vacationDays = yearTotals.vacationDays || 0;
+    const effectiveDays = Math.max(1, daysSinceStart - vacationDays);
+    return Math.max(1, effectiveDays / 7);
+  }, [logs, yearTotals.vacationDays]);
 
   const avgGoldenHoursPerWeek = (yearTotals.buildingMinutes + yearTotals.marketingMinutes + yearTotals.levelingUpMinutes) / effectiveWeeks;
   const avgBuildingPerWeek = yearTotals.buildingMinutes / effectiveWeeks;
   const avgMarketingPerWeek = yearTotals.marketingMinutes / effectiveWeeks;
   const avgLearningPerWeek = yearTotals.levelingUpMinutes / effectiveWeeks;
+
+  // Effective weeks for all-time (since onboarding, not clamped to current year)
+  const allTimeEffectiveWeeks = useMemo(() => {
+    const now = new Date();
+    let startDate: Date;
+
+    if (onboardingDate) {
+      startDate = new Date(onboardingDate + 'T00:00:00');
+    } else {
+      // Fallback: use Jan 1 of current year
+      startDate = new Date(now.getFullYear(), 0, 1);
+    }
+
+    const daysSinceStart = Math.max(1, Math.ceil((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)));
+    const vacationDays = allTimeTotals.vacationDays || 0;
+    const effectiveDays = Math.max(1, daysSinceStart - vacationDays);
+    return Math.max(1, effectiveDays / 7);
+  }, [onboardingDate, allTimeTotals.vacationDays]);
 
   // Year to date Golden Hours total
   const ytdGoldenHoursTotal = yearTotals.buildingMinutes + yearTotals.marketingMinutes + yearTotals.levelingUpMinutes;
@@ -176,6 +274,27 @@ export default function StatsView() {
 
       {activeTab === 'data' ? (
         <View style={styles.cardsContainer}>
+          {/* Weekly Average */}
+          <StatsCard title="Weekly Average">
+            <GoldenHoursBlock
+              totalMinutes={Math.round(avgGoldenHoursPerWeek)}
+              buildingMinutes={Math.round(avgBuildingPerWeek)}
+              marketingMinutes={Math.round(avgMarketingPerWeek)}
+              learningMinutes={Math.round(avgLearningPerWeek)}
+              goalTotalMinutes={goalTotalMinutes}
+              goalBuildingMinutes={goalBuildingMinutes}
+              goalMarketingMinutes={goalMarketingMinutes}
+              goalLearningMinutes={goalLearningMinutes}
+            />
+            <DynamicMetricsBlock
+              metrics={activeCustomMetrics}
+              totals={yearTotals}
+              showAsAverage
+              weeksElapsed={effectiveWeeks}
+              customMetricGoals={customMetricGoals}
+            />
+          </StatsCard>
+
           {/* Year to Date */}
           <StatsCard title="Year to Date">
             <GoldenHoursBlock
@@ -187,22 +306,6 @@ export default function StatsView() {
             <DynamicMetricsBlock
               metrics={activeCustomMetrics}
               totals={yearTotals}
-            />
-          </StatsCard>
-
-          {/* Weekly Average */}
-          <StatsCard title="Weekly Average">
-            <GoldenHoursBlock
-              totalMinutes={Math.round(avgGoldenHoursPerWeek)}
-              buildingMinutes={Math.round(avgBuildingPerWeek)}
-              marketingMinutes={Math.round(avgMarketingPerWeek)}
-              learningMinutes={Math.round(avgLearningPerWeek)}
-            />
-            <DynamicMetricsBlock
-              metrics={activeCustomMetrics}
-              totals={yearTotals}
-              showAsAverage
-              weeksElapsed={effectiveWeeks}
             />
           </StatsCard>
 
@@ -320,5 +423,28 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: colors.text.primary,
+  },
+  goalValueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  goalDivider: {
+    fontSize: 13,
+    color: colors.text.muted,
+  },
+  goalTarget: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: colors.text.muted,
+  },
+  totalGoalRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginBottom: 8,
+  },
+  totalGoalTarget: {
+    fontSize: 18,
+    fontWeight: '500',
+    color: colors.text.muted,
   },
 });

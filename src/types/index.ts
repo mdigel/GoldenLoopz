@@ -122,6 +122,15 @@ export function createEmptyLog(date: string): DailyLog {
   };
 }
 
+// Goal history snapshot
+export interface GoalHistoryEntry {
+  effectiveDate: string; // YYYY-MM-DD when these goals took effect
+  buildingHours: number;
+  marketingHours: number;
+  levelingUpHours: number;
+  customMetricGoals: Record<string, number>; // metricId -> weeklyGoal
+}
+
 // Default weekly goals
 export const DEFAULT_GOALS: WeeklyGoals = {
   buildingHours: 0,

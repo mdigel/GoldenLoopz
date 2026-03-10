@@ -3,7 +3,7 @@
     "name": "Golden Loopz",
     "slug": "golden-loopz",
     "scheme": "goldenloopz",
-    "version": "1.0.3",
+    "version": "1.0.5",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",

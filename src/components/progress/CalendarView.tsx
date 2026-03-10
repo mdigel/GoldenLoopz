@@ -7,9 +7,10 @@ import { useGoalsStore } from '../../state/goalsStore';
 import { useCustomMetricsStore } from '../../state/customMetricsStore';
 import { colors, METRICS } from '../../constants/colors';
 import { getWeekStart, getWeeksPerMonth } from '../../lib/dateUtils';
-import { startOfYear, addWeeks, getWeek, getMonth, isBefore } from 'date-fns';
+import { startOfYear, addWeeks, getWeek, getMonth, isBefore, format, parseISO } from 'date-fns';
 import { CustomMetric, SYSTEM_METRIC_IDS } from '../../types';
-import { calculateProRatedProgress, isFullVacationWeek, proRateGoal } from '../../lib/goalUtils';
+import { calculateProRatedProgress, isFullVacationWeek, proRateGoal, getTotalUnavailableDays } from '../../lib/goalUtils';
+import { useOnboardingStore } from '../../state/onboardingStore';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const CELL_SIZE = 56;
@@ -28,6 +29,7 @@ interface MiniConcentricRingsProps {
   buildingProgress: number;
   marketingProgress: number;
   learningProgress: number;
+  totalHours: number;
   size?: number;
 }
 
@@ -35,6 +37,7 @@ const MiniConcentricRings: React.FC<MiniConcentricRingsProps> = ({
   buildingProgress,
   marketingProgress,
   learningProgress,
+  totalHours,
   size = 44,
 }) => {
   const strokeWidth = 4;
@@ -50,85 +53,92 @@ const MiniConcentricRings: React.FC<MiniConcentricRingsProps> = ({
 
   const center = size / 2;
 
+  const displayHours = totalHours % 1 === 0 ? totalHours.toFixed(0) : totalHours.toFixed(1);
+
   return (
-    <Svg width={size} height={size}>
-      <Defs>
-        <LinearGradient id="miniPurpleGradient" x1="0%" y1="100%" x2="100%" y2="0%">
-          <Stop offset="0%" stopColor="#8C4ECB" />
-          <Stop offset="92.5%" stopColor="#BF5AD3" />
-        </LinearGradient>
-        <LinearGradient id="miniGoldGradient" x1="100%" y1="0%" x2="0%" y2="100%">
-          <Stop offset="0%" stopColor="#F59E0C" />
-          <Stop offset="100%" stopColor="#F56F01" />
-        </LinearGradient>
-      </Defs>
+    <View style={{ width: size, height: size, position: 'relative' }}>
+      <Svg width={size} height={size}>
+        <Defs>
+          <LinearGradient id="miniPurpleGradient" x1="0%" y1="100%" x2="100%" y2="0%">
+            <Stop offset="0%" stopColor="#8C4ECB" />
+            <Stop offset="92.5%" stopColor="#BF5AD3" />
+          </LinearGradient>
+          <LinearGradient id="miniGoldGradient" x1="100%" y1="0%" x2="0%" y2="100%">
+            <Stop offset="0%" stopColor="#F59E0C" />
+            <Stop offset="100%" stopColor="#F56F01" />
+          </LinearGradient>
+        </Defs>
 
-      {/* Outer ring - Building (Purple) */}
-      <Circle
-        cx={center}
-        cy={center}
-        r={outerRadius}
-        stroke="#EFABFE"
-        strokeWidth={strokeWidth}
-        fill="none"
-      />
-      <Circle
-        cx={center}
-        cy={center}
-        r={outerRadius}
-        stroke="url(#miniPurpleGradient)"
-        strokeWidth={strokeWidth}
-        fill="none"
-        strokeDasharray={outerCircumference}
-        strokeDashoffset={outerCircumference * (1 - Math.min(buildingProgress, 1))}
-        strokeLinecap="round"
-        transform={`rotate(-90 ${center} ${center})`}
-      />
+        {/* Outer ring - Marketing (Purple) */}
+        <Circle
+          cx={center}
+          cy={center}
+          r={outerRadius}
+          stroke="#EFABFE"
+          strokeWidth={strokeWidth}
+          fill="none"
+        />
+        <Circle
+          cx={center}
+          cy={center}
+          r={outerRadius}
+          stroke="url(#miniPurpleGradient)"
+          strokeWidth={strokeWidth}
+          fill="none"
+          strokeDasharray={outerCircumference}
+          strokeDashoffset={outerCircumference * (1 - Math.min(marketingProgress, 1))}
+          strokeLinecap="round"
+          transform={`rotate(-90 ${center} ${center})`}
+        />
 
-      {/* Middle ring - Learning (Yellow/Cream) */}
-      <Circle
-        cx={center}
-        cy={center}
-        r={middleRadius}
-        stroke="#EFE1B7"
-        strokeWidth={strokeWidth}
-        fill="none"
-      />
-      <Circle
-        cx={center}
-        cy={center}
-        r={middleRadius}
-        stroke="#FDD219"
-        strokeWidth={strokeWidth}
-        fill="none"
-        strokeDasharray={middleCircumference}
-        strokeDashoffset={middleCircumference * (1 - Math.min(learningProgress, 1))}
-        strokeLinecap="round"
-        transform={`rotate(-90 ${center} ${center})`}
-      />
+        {/* Middle ring - Building (Gold/Orange) */}
+        <Circle
+          cx={center}
+          cy={center}
+          r={middleRadius}
+          stroke="#E9C08F"
+          strokeWidth={strokeWidth}
+          fill="none"
+        />
+        <Circle
+          cx={center}
+          cy={center}
+          r={middleRadius}
+          stroke="url(#miniGoldGradient)"
+          strokeWidth={strokeWidth}
+          fill="none"
+          strokeDasharray={middleCircumference}
+          strokeDashoffset={middleCircumference * (1 - Math.min(buildingProgress, 1))}
+          strokeLinecap="round"
+          transform={`rotate(-90 ${center} ${center})`}
+        />
 
-      {/* Inner ring - Marketing (Gold/Orange) */}
-      <Circle
-        cx={center}
-        cy={center}
-        r={innerRadius}
-        stroke="#E9C08F"
-        strokeWidth={strokeWidth}
-        fill="none"
-      />
-      <Circle
-        cx={center}
-        cy={center}
-        r={innerRadius}
-        stroke="url(#miniGoldGradient)"
-        strokeWidth={strokeWidth}
-        fill="none"
-        strokeDasharray={innerCircumference}
-        strokeDashoffset={innerCircumference * (1 - Math.min(marketingProgress, 1))}
-        strokeLinecap="round"
-        transform={`rotate(-90 ${center} ${center})`}
-      />
-    </Svg>
+        {/* Inner ring - Learning (Yellow/Cream) */}
+        <Circle
+          cx={center}
+          cy={center}
+          r={innerRadius}
+          stroke="#EFE1B7"
+          strokeWidth={strokeWidth}
+          fill="none"
+        />
+        <Circle
+          cx={center}
+          cy={center}
+          r={innerRadius}
+          stroke="#FDD219"
+          strokeWidth={strokeWidth}
+          fill="none"
+          strokeDasharray={innerCircumference}
+          strokeDashoffset={innerCircumference * (1 - Math.min(learningProgress, 1))}
+          strokeLinecap="round"
+          transform={`rotate(-90 ${center} ${center})`}
+        />
+      </Svg>
+      <View style={styles.miniRingCenter}>
+        <Text style={styles.miniRingText}>{displayHours}</Text>
+      </View>
+    </View>
   );
 };
 
@@ -252,6 +262,7 @@ interface WeekCellProps {
   buildingProgress: number;
   marketingProgress: number;
   learningProgress: number;
+  totalGoldenMinutes: number;
   customMetricData: Record<string, CustomMetricWeekData>;
   moodScore: number;
   isVacation: boolean;
@@ -266,6 +277,7 @@ const WeekCell: React.FC<WeekCellProps> = ({
   buildingProgress,
   marketingProgress,
   learningProgress,
+  totalGoldenMinutes,
   customMetricData,
   moodScore,
   isVacation,
@@ -321,6 +333,7 @@ const WeekCell: React.FC<WeekCellProps> = ({
             buildingProgress={buildingProgress}
             marketingProgress={marketingProgress}
             learningProgress={learningProgress}
+            totalHours={Math.round((totalGoldenMinutes / 60) * 10) / 10}
           />
         </View>
       );
@@ -400,15 +413,52 @@ const WeekCell: React.FC<WeekCellProps> = ({
   );
 };
 
+// Notes log component
+function NotesLog({ logs }: { logs: Record<string, any> }) {
+  const notes = useMemo(() => {
+    return Object.values(logs)
+      .filter((log: any) => log.reflection && log.reflection.trim().length > 0)
+      .sort((a: any, b: any) => b.date.localeCompare(a.date))
+      .map((log: any) => ({
+        date: log.date,
+        reflection: log.reflection,
+      }));
+  }, [logs]);
+
+  if (notes.length === 0) {
+    return (
+      <View style={styles.notesEmpty}>
+        <Text style={styles.notesEmptyText}>No notes yet</Text>
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView style={styles.notesContainer} showsVerticalScrollIndicator={false}>
+      {notes.map((note) => (
+        <View key={note.date} style={styles.noteCard}>
+          <Text style={styles.noteDate}>
+            {format(parseISO(note.date), 'EEEE, MMM d, yyyy')}
+          </Text>
+          <Text style={styles.noteText}>{note.reflection}</Text>
+        </View>
+      ))}
+    </ScrollView>
+  );
+}
+
 export default function CalendarView() {
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [selectedMetric, setSelectedMetric] = useState<MetricType>('golden_hours');
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
+  const logs = useLogStore((state) => state.logs);
   const getWeekTotals = useLogStore((state) => state.getWeekTotals);
   const goals = useGoalsStore((state) => state.goals);
   const customMetrics = useCustomMetricsStore((state) => state.metrics);
   const activeCustomMetrics = useMemo(() => customMetrics.filter(m => m.isActive), [customMetrics]);
+  const onboardingDate = useOnboardingStore((state) => state.onboardingCompletedDate);
+  const getGoalsForDate = useGoalsStore((state) => state.getGoalsForDate);
 
   // Build dynamic metric options from active custom metrics
   const metricOptions = useMemo<MetricOption[]>(() => {
@@ -421,8 +471,9 @@ export default function CalendarView() {
       options.push({ key: metric.id, label: metric.name });
     });
 
-    // Add mood at the end
+    // Add mood and notes at the end
     options.push({ key: 'mood', label: 'Mood' });
+    options.push({ key: 'notes', label: 'Notes' });
 
     return options;
   }, [activeCustomMetrics]);
@@ -441,6 +492,7 @@ export default function CalendarView() {
         buildingProgress: number;
         marketingProgress: number;
         learningProgress: number;
+        totalGoldenMinutes: number;
         customMetricData: Record<string, CustomMetricWeekData>;
         moodScore: number;
         isVacation: boolean;
@@ -467,22 +519,27 @@ export default function CalendarView() {
       // Week belongs to the month that contains Monday
       const weekMonth = getMonth(currentWeekStart);
 
-      // Get week totals
+      // Get week totals and historical goals
       const weekTotals = getWeekTotals(currentWeekStart);
+      const currentCustomMetricGoals: Record<string, number> = {};
+      activeCustomMetrics.forEach(m => { currentCustomMetricGoals[m.id] = m.weeklyGoal; });
+      const weekGoals = getGoalsForDate(currentWeekStart, currentCustomMetricGoals);
 
-      // Calculate progress for Golden Hours metrics (pro-rated for vacation days)
+      // Calculate progress for Golden Hours metrics (pro-rated for vacation + first-week)
       const { vacationDays, daysLogged } = weekTotals;
+      const unavailableDays = getTotalUnavailableDays(vacationDays, currentWeekStart, onboardingDate);
       const isAllVacation = isFullVacationWeek(vacationDays, daysLogged);
+      const isAllUnavailable = unavailableDays >= 7;
 
-      const buildingProgress = isAllVacation
+      const buildingProgress = isAllVacation || isAllUnavailable
         ? 1
-        : calculateProRatedProgress(weekTotals.buildingMinutes, goals.buildingHours * 60, vacationDays) ?? 0;
-      const marketingProgress = isAllVacation
+        : calculateProRatedProgress(weekTotals.buildingMinutes, weekGoals.buildingHours * 60, unavailableDays) ?? 0;
+      const marketingProgress = isAllVacation || isAllUnavailable
         ? 1
-        : calculateProRatedProgress(weekTotals.marketingMinutes, goals.marketingHours * 60, vacationDays) ?? 0;
-      const learningProgress = isAllVacation
+        : calculateProRatedProgress(weekTotals.marketingMinutes, weekGoals.marketingHours * 60, unavailableDays) ?? 0;
+      const learningProgress = isAllVacation || isAllUnavailable
         ? 1
-        : calculateProRatedProgress(weekTotals.levelingUpMinutes, goals.levelingUpHours * 60, vacationDays) ?? 0;
+        : calculateProRatedProgress(weekTotals.levelingUpMinutes, weekGoals.levelingUpHours * 60, unavailableDays) ?? 0;
 
       // Calculate progress for each custom metric
       const customMetricData: Record<string, CustomMetricWeekData> = {};
@@ -501,10 +558,12 @@ export default function CalendarView() {
         let progress = 0;
         let excess = 0;
 
-        if (isAllVacation) {
-          progress = 1; // Full vacation week = goal met
-        } else if (metric.weeklyGoal > 0) {
-          const adjustedGoal = proRateGoal(metric.weeklyGoal, vacationDays);
+        const historicalGoal = weekGoals.customMetricGoals[metric.id] ?? metric.weeklyGoal;
+
+        if (isAllVacation || isAllUnavailable) {
+          progress = 1; // Full vacation/unavailable week = goal met
+        } else if (historicalGoal > 0) {
+          const adjustedGoal = proRateGoal(historicalGoal, unavailableDays);
           if (metric.category === 'negative') {
             // For limits, progress = actual / adjusted limit
             progress = adjustedGoal > 0 ? total / adjustedGoal : 0;
@@ -535,6 +594,7 @@ export default function CalendarView() {
         buildingProgress,
         marketingProgress,
         learningProgress,
+        totalGoldenMinutes: weekTotals.buildingMinutes + weekTotals.marketingMinutes + weekTotals.levelingUpMinutes,
         customMetricData,
         moodScore: weekTotals.averageMood,
         isVacation,
@@ -547,7 +607,7 @@ export default function CalendarView() {
     }
 
     return monthsData;
-  }, [currentYear, getWeekTotals, goals, activeCustomMetrics]);
+  }, [currentYear, getWeekTotals, goals, activeCustomMetrics, onboardingDate, getGoalsForDate]);
 
   // Get the correct number of weeks per month for this year
   const weeksPerMonth = useMemo(() => getWeeksPerMonth(currentYear), [currentYear]);
@@ -603,7 +663,10 @@ export default function CalendarView() {
       {/* Divider */}
       <View style={styles.divider} />
 
-      {/* Calendar Grid */}
+      {/* Notes view or Calendar Grid */}
+      {selectedMetric === 'notes' ? (
+        <NotesLog logs={logs} />
+      ) : (
       <ScrollView style={styles.gridContainer} showsVerticalScrollIndicator={false}>
         {gridData.map((monthData) => (
           <View key={monthData.month} style={styles.monthRow}>
@@ -620,6 +683,7 @@ export default function CalendarView() {
                   buildingProgress={week.buildingProgress}
                   marketingProgress={week.marketingProgress}
                   learningProgress={week.learningProgress}
+                  totalGoldenMinutes={week.totalGoldenMinutes}
                   customMetricData={week.customMetricData}
                   moodScore={week.moodScore}
                   isVacation={week.isVacation}
@@ -636,6 +700,7 @@ export default function CalendarView() {
           </View>
         ))}
       </ScrollView>
+      )}
     </View>
   );
 }
@@ -782,5 +847,54 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  miniRingCenter: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  miniRingText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: colors.text.primary,
+  },
+  notesContainer: {
+    flex: 1,
+  },
+  notesEmpty: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  notesEmptyText: {
+    fontSize: 15,
+    color: colors.text.muted,
+  },
+  noteCard: {
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  noteDate: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.text.muted,
+    marginBottom: 6,
+  },
+  noteText: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: colors.text.primary,
   },
 });

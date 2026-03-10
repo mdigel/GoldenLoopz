@@ -13,6 +13,7 @@ import { colors } from '../../constants/colors';
 import { useGoalsStore } from '../../state/goalsStore';
 import Stepper from '../../components/ui/Stepper';
 import Button from '../../components/ui/Button';
+import { InfoTooltip } from '../../components/ui/InfoTooltip';
 
 interface GoldenHoursScreenProps {
   onNext: () => void;
@@ -31,7 +32,7 @@ export default function GoldenHoursScreen({ onNext, onBack }: GoldenHoursScreenP
         <TouchableOpacity onPress={onBack} style={styles.backButton}>
           <ChevronLeft size={24} color={colors.text.primary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Set Your Weeky Goals</Text>
+        <Text style={styles.headerTitle}>Set Your Weekly Goals</Text>
         <View style={styles.backButton} />
       </View>
 
@@ -40,37 +41,10 @@ export default function GoldenHoursScreen({ onNext, onBack }: GoldenHoursScreenP
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
-        {/* Building */}
-        <View style={styles.categoryCard}>
-          <View style={styles.categoryHeader}>
-            <View style={[styles.categoryIcon, { backgroundColor: colors.purple[50] }]}>
-              <Image
-                source={require('../../../assets/pickaxe.png')}
-                style={styles.categoryImage}
-                resizeMode="contain"
-              />
-            </View>
-            <View style={styles.categoryInfo}>
-              <Text style={styles.categoryTitle}>Building</Text>
-            </View>
-          </View>
-          <View style={styles.goalRow}>
-            <Text style={styles.goalLabel}>Weekly goal</Text>
-            <Stepper
-              value={goals.buildingHours}
-              onChange={(value) => updateGoals({ buildingHours: value })}
-              increment={1}
-              min={0}
-              max={40}
-              formatValue={formatHours}
-            />
-          </View>
-        </View>
-
         {/* Marketing */}
         <View style={styles.categoryCard}>
           <View style={styles.categoryHeader}>
-            <View style={[styles.categoryIcon, { backgroundColor: colors.gold[50] }]}>
+            <View style={[styles.categoryIcon, { backgroundColor: colors.purple[50] }]}>
               <Image
                 source={require('../../../assets/megaphone.png')}
                 style={styles.categoryImage}
@@ -86,6 +60,33 @@ export default function GoldenHoursScreen({ onNext, onBack }: GoldenHoursScreenP
             <Stepper
               value={goals.marketingHours}
               onChange={(value) => updateGoals({ marketingHours: value })}
+              increment={1}
+              min={0}
+              max={40}
+              formatValue={formatHours}
+            />
+          </View>
+        </View>
+
+        {/* Building */}
+        <View style={styles.categoryCard}>
+          <View style={styles.categoryHeader}>
+            <View style={[styles.categoryIcon, { backgroundColor: colors.gold[50] }]}>
+              <Image
+                source={require('../../../assets/pickaxe.png')}
+                style={styles.categoryImage}
+                resizeMode="contain"
+              />
+            </View>
+            <View style={styles.categoryInfo}>
+              <Text style={styles.categoryTitle}>Building</Text>
+            </View>
+          </View>
+          <View style={styles.goalRow}>
+            <Text style={styles.goalLabel}>Weekly goal</Text>
+            <Stepper
+              value={goals.buildingHours}
+              onChange={(value) => updateGoals({ buildingHours: value })}
               increment={1}
               min={0}
               max={40}
@@ -123,7 +124,16 @@ export default function GoldenHoursScreen({ onNext, onBack }: GoldenHoursScreenP
 
         <View style={styles.totalCard}>
           <Text style={styles.totalLabel}>Total weekly goal</Text>
-          <Text style={styles.totalValue}>{formatHours(totalHours)}</Text>
+          <View style={styles.totalValueRow}>
+            <Text style={styles.totalValue}>{totalHours}</Text>
+            <Text style={styles.totalSeparator}> / </Text>
+            <Text style={styles.totalTarget}>10 hrs</Text>
+            <InfoTooltip
+              text="Aim for 10-15 hours a week total to build a sustainable side business. Start with 5 if that feels more realistic."
+              modal
+              iconColor={colors.slate[500]}
+            />
+          </View>
         </View>
         <Text style={styles.totalHelpText}>
           You can adjust these weekly goals anytime as the needs of your business change.
@@ -234,10 +244,23 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.text.secondary,
   },
+  totalValueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   totalValue: {
     fontSize: 16,
     fontWeight: '700',
     color: colors.text.primary,
+  },
+  totalSeparator: {
+    fontSize: 16,
+    color: colors.text.muted,
+  },
+  totalTarget: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text.secondary,
   },
   totalHelpText: {
     fontSize: 13,

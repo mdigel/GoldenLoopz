@@ -40,3 +40,7 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# artifacts
+golden-loopz@1.0.0
+npx

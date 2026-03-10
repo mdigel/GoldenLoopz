@@ -65,14 +65,14 @@ export default function DayDetailScreen() {
             Positive Inputs
           </Text>
           <MetricRow
-            label={METRICS.building.label}
-            value={formatMinutesToDisplay(log.buildingMinutes)}
-            color={METRICS.building.color}
-          />
-          <MetricRow
             label={METRICS.marketing.label}
             value={formatMinutesToDisplay(log.marketingMinutes)}
             color={METRICS.marketing.color}
+          />
+          <MetricRow
+            label={METRICS.building.label}
+            value={formatMinutesToDisplay(log.buildingMinutes)}
+            color={METRICS.building.color}
           />
           <MetricRow
             label={METRICS.levelingUp.label}

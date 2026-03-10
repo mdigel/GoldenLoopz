@@ -21,7 +21,7 @@ import Animated, {
 const SCREEN_WIDTH = Dimensions.get('window').width;
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { Settings } from 'lucide-react-native';
+import { Settings, X } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useLogStore } from '../state/logStore';
 import { useGoalsStore } from '../state/goalsStore';
@@ -36,9 +36,11 @@ import { colors } from '../constants/colors';
 import { WeekCalendarStrip } from '../components/ui/WeekCalendarStrip';
 import { MoodScale } from '../components/ui/MoodScale';
 import { MetricRing } from '../components/log/MetricRing';
-import { InfoTooltip } from '../components/ui/InfoTooltip';
 import { InfoModal, InfoText, InfoBold, InfoBullet, InfoSubBullet } from '../components/ui/InfoModal';
 import Stepper from '../components/ui/Stepper';
+import { GoalToast, GoalToastType } from '../components/ui/GoalToast';
+import { proRateGoal, getTotalUnavailableDays } from '../lib/goalUtils';
+import { useOnboardingStore } from '../state/onboardingStore';
 import { RootStackParamList } from '../navigation/types';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
@@ -64,7 +66,27 @@ export default function LogScreen() {
   const goals = useGoalsStore((state) => state.goals);
   const metricSettings = useMetricSettingsStore((state) => state.settings);
   const customMetrics = useCustomMetricsStore((state) => state.metrics);
+  const getWeekTotals = useLogStore((state) => state.getWeekTotals);
   const activeCustomMetrics = useMemo(() => customMetrics.filter(m => m.isActive), [customMetrics]);
+  const onboardingDate = useOnboardingStore((state) => state.onboardingCompletedDate);
+  const hasSeenLogBanner = useOnboardingStore((state) => state.hasSeenLogBanner);
+  const dismissLogBanner = useOnboardingStore((state) => state.dismissLogBanner);
+
+  // Toast state for goal/anti-goal notifications
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastType, setToastType] = useState<GoalToastType>(null);
+  const [toastMetricName, setToastMetricName] = useState('');
+
+  const showGoalToast = useCallback((type: GoalToastType, name: string) => {
+    setToastType(type);
+    setToastMetricName(name);
+    setToastVisible(true);
+  }, []);
+
+  const dismissToast = useCallback(() => {
+    setToastVisible(false);
+    setToastType(null);
+  }, []);
 
   const log = useMemo(() => {
     return logs[dateString] || {
@@ -136,21 +158,66 @@ export default function LogScreen() {
 
   const handleMetricChange = useCallback(
     (key: string, value: number) => {
+      // Check if this change crosses a weekly goal threshold
+      const goalMap: Record<string, { goal: number; name: string }> = {
+        buildingMinutes: { goal: goals.buildingHours * 60, name: 'Building' },
+        marketingMinutes: { goal: goals.marketingHours * 60, name: 'Marketing' },
+        levelingUpMinutes: { goal: goals.levelingUpHours * 60, name: 'Learning' },
+      };
+      const metricGoal = goalMap[key];
+      if (metricGoal && metricGoal.goal > 0) {
+        const weekTotals = getWeekTotals(selectedDate);
+        const unavailableDays = getTotalUnavailableDays(weekTotals.vacationDays, selectedDate, onboardingDate);
+        const adjustedGoal = proRateGoal(metricGoal.goal, unavailableDays);
+        const oldDayValue = (log as any)[key] || 0;
+        const currentWeeklyTotal = (weekTotals as any)[key] || 0;
+        const newWeeklyTotal = currentWeeklyTotal - oldDayValue + value;
+        if (adjustedGoal > 0 && currentWeeklyTotal < adjustedGoal && newWeeklyTotal >= adjustedGoal) {
+          showGoalToast('goal_hit', metricGoal.name);
+        }
+      }
+
       updateLog(dateString, { [key]: value });
 
       if (key === 'buildingMinutes' && value > 0) {
         recordLogEntry(dateString, true);
       }
     },
-    [dateString, updateLog, recordLogEntry]
+    [dateString, updateLog, recordLogEntry, goals, log, selectedDate, getWeekTotals, showGoalToast, onboardingDate]
   );
 
   const handleCustomMetricChange = useCallback(
     (metric: CustomMetric, value: number) => {
+      // Check if this change crosses a weekly goal threshold
+      if (metric.weeklyGoal > 0) {
+        const weekTotals = getWeekTotals(selectedDate);
+        const unavailableDays = getTotalUnavailableDays(weekTotals.vacationDays, selectedDate, onboardingDate);
+        const adjustedGoal = proRateGoal(metric.weeklyGoal, unavailableDays);
+        const oldDayValue = getMetricValue(metric, log);
+        let currentWeeklyTotal: number;
+        if (metric.isSystemMetric && metric.linkedField) {
+          currentWeeklyTotal = (weekTotals as any)[metric.linkedField] || 0;
+        } else {
+          currentWeeklyTotal = weekTotals.customMetricTotals[metric.id] || 0;
+        }
+        const newWeeklyTotal = currentWeeklyTotal - oldDayValue + value;
+
+        if (metric.category === 'positive') {
+          if (adjustedGoal > 0 && currentWeeklyTotal < adjustedGoal && newWeeklyTotal >= adjustedGoal) {
+            showGoalToast('goal_hit', metric.name);
+          }
+        } else {
+          // Negative/anti-goal: alert when exceeding the cap
+          if (adjustedGoal > 0 && currentWeeklyTotal <= adjustedGoal && newWeeklyTotal > adjustedGoal) {
+            showGoalToast('anti_goal_broken', metric.name);
+          }
+        }
+      }
+
       const updates = setMetricValue(metric, log, value);
       updateLog(dateString, updates);
     },
-    [dateString, updateLog, log]
+    [dateString, updateLog, log, selectedDate, getWeekTotals, showGoalToast, onboardingDate]
   );
 
   const handleMoodChange = useCallback(
@@ -173,17 +240,6 @@ export default function LogScreen() {
   // Convert stored 0-100 mood to 1-10 scale
   const moodValue = Math.round((log.moodScore / 100) * 9) + 1;
 
-  // Calculate progress for main metrics (weekly goals in hours, logs in minutes)
-  const buildingProgress = goals.buildingHours > 0
-    ? log.buildingMinutes / (goals.buildingHours * 60)
-    : 0;
-  const marketingProgress = goals.marketingHours > 0
-    ? log.marketingMinutes / (goals.marketingHours * 60)
-    : 0;
-  const learningProgress = goals.levelingUpHours > 0
-    ? log.levelingUpMinutes / (goals.levelingUpHours * 60)
-    : 0;
-
   const getSystemMetricImage = (id: string) => {
     switch (id) {
       case SYSTEM_METRIC_IDS.EXERCISE:
@@ -199,6 +255,12 @@ export default function LogScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      <GoalToast
+        visible={toastVisible}
+        type={toastType}
+        metricName={toastMetricName}
+        onDismiss={dismissToast}
+      />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.flex}
@@ -218,6 +280,26 @@ export default function LogScreen() {
             />
           </View>
 
+          {/* First-time banner */}
+          {!hasSeenLogBanner && (
+            <View style={styles.banner}>
+              <View style={styles.bannerContent}>
+                <Text style={styles.bannerText}>
+                  This is where you log your data each day. Tap the{' '}
+                  <Settings size={13} color={colors.text.secondary} />{' '}
+                  icon next to each metric to customize it, or add more metrics on the Profile tab.
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={dismissLogBanner}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                style={styles.bannerClose}
+              >
+                <X size={18} color={colors.text.secondary} />
+              </TouchableOpacity>
+            </View>
+          )}
+
           {/* Week Calendar Strip */}
           <WeekCalendarStrip
             selectedDate={selectedDate}
@@ -232,7 +314,7 @@ export default function LogScreen() {
               <Text style={styles.sectionTitle}>Golden Hours</Text>
               <TouchableOpacity
                 style={styles.settingsIcon}
-                onPress={() => navigation.navigate('MetricSettings', { metricKey: 'building' })}
+                onPress={() => navigation.navigate('GoldenHoursSettings')}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
                 <Settings size={18} color={colors.text.muted} />
@@ -257,24 +339,6 @@ export default function LogScreen() {
 
             <View style={styles.metricsRow}>
               <MetricRing
-                metricKey="building"
-                value={log.buildingMinutes}
-                goal={goals.buildingHours * 60}
-                onIncrement={() =>
-                  handleMetricChange(
-                    'buildingMinutes',
-                    log.buildingMinutes + (metricSettings.building?.increment || METRICS.building.increment)
-                  )
-                }
-                onDecrement={() =>
-                  handleMetricChange(
-                    'buildingMinutes',
-                    Math.max(0, log.buildingMinutes - (metricSettings.building?.increment || METRICS.building.increment))
-                  )
-                }
-              />
-
-              <MetricRing
                 metricKey="marketing"
                 value={log.marketingMinutes}
                 goal={goals.marketingHours * 60}
@@ -288,6 +352,24 @@ export default function LogScreen() {
                   handleMetricChange(
                     'marketingMinutes',
                     Math.max(0, log.marketingMinutes - (metricSettings.marketing?.increment || METRICS.marketing.increment))
+                  )
+                }
+              />
+
+              <MetricRing
+                metricKey="building"
+                value={log.buildingMinutes}
+                goal={goals.buildingHours * 60}
+                onIncrement={() =>
+                  handleMetricChange(
+                    'buildingMinutes',
+                    log.buildingMinutes + (metricSettings.building?.increment || METRICS.building.increment)
+                  )
+                }
+                onDecrement={() =>
+                  handleMetricChange(
+                    'buildingMinutes',
+                    Math.max(0, log.buildingMinutes - (metricSettings.building?.increment || METRICS.building.increment))
                   )
                 }
               />
@@ -339,7 +421,11 @@ export default function LogScreen() {
                         >
                           {metric.name}
                         </Text>
-                        <InfoTooltip text={metric.description} />
+                        {metric.description ? (
+                          <InfoModal title={metric.name}>
+                            <InfoText>{metric.description}</InfoText>
+                          </InfoModal>
+                        ) : null}
                       </View>
                     </View>
                     <View style={styles.inputStepper}>
@@ -358,7 +444,6 @@ export default function LogScreen() {
                     <TouchableOpacity
                       style={styles.rowSettingsIcon}
                       onPress={() => navigation.navigate('MetricSettings', { metricKey: metric.id })}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     >
                       <Settings size={16} color={colors.text.muted} />
                     </TouchableOpacity>
@@ -453,6 +538,28 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 16,
   },
+  banner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.gold[50],
+    marginHorizontal: 16,
+    marginBottom: 12,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  bannerContent: {
+    flex: 1,
+  },
+  bannerText: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.text.primary,
+  },
+  bannerClose: {
+    padding: 2,
+  },
   headerLogo: {
     width: 56,
     height: 56,
@@ -487,11 +594,12 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   rowSettingsIcon: {
-    width: 42,
-    height: 42,
+    position: 'absolute',
+    right: -6,
+    width: 32,
+    height: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 8,
   },
   metricsRow: {
     flexDirection: 'row',
@@ -500,7 +608,6 @@ const styles = StyleSheet.create({
   },
   inputRow: {
     flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: 12,
     paddingHorizontal: 6,
@@ -529,6 +636,7 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   inputStepper: {
+    flex: 1,
     alignItems: 'flex-start',
     paddingLeft: 12,
     justifyContent: 'center',

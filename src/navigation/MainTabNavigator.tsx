@@ -1,16 +1,26 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { View, Image } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { PenLine, ChartBar, User } from 'lucide-react-native';
 import { MainTabParamList } from './types';
 import { colors } from '../constants/colors';
 import LogScreen from '../screens/LogScreen';
 import ProgressScreen from '../screens/ProgressScreen';
 import ProfileScreen from '../screens/ProfileScreen';
+import WeeklySummaryModal from '../components/WeeklySummaryModal';
+import { useWeeklyReportStore } from '../state/weeklyReportStore';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
 export default function MainTabNavigator() {
+  const checkAndShow = useWeeklyReportStore((s) => s.checkAndShow);
+
+  useEffect(() => {
+    checkAndShow();
+  }, []);
+
   return (
+    <View style={{ flex: 1 }}>
+    <WeeklySummaryModal />
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
@@ -36,7 +46,7 @@ export default function MainTabNavigator() {
         component={LogScreen}
         options={{
           tabBarLabel: 'Log',
-          tabBarIcon: ({ color, size }) => <PenLine size={size} color={color} />,
+          tabBarIcon: ({ size }) => <Image source={require('../../assets/pencil.png')} style={{ width: size, height: size }} resizeMode="contain" />,
         }}
       />
       <Tab.Screen
@@ -44,7 +54,7 @@ export default function MainTabNavigator() {
         component={ProgressScreen}
         options={{
           tabBarLabel: 'Progress',
-          tabBarIcon: ({ color, size }) => <ChartBar size={size} color={color} />,
+          tabBarIcon: ({ size }) => <Image source={require('../../assets/chart.png')} style={{ width: size, height: size }} resizeMode="contain" />,
         }}
       />
       <Tab.Screen
@@ -52,9 +62,10 @@ export default function MainTabNavigator() {
         component={ProfileScreen}
         options={{
           tabBarLabel: 'Profile',
-          tabBarIcon: ({ color, size }) => <User size={size} color={color} />,
+          tabBarIcon: ({ size }) => <Image source={require('../../assets/profile.png')} style={{ width: size, height: size }} resizeMode="contain" />,
         }}
       />
     </Tab.Navigator>
+    </View>
   );
 }

@@ -101,19 +101,19 @@ export const ConcentricRings: React.FC<ConcentricRingsProps> = ({
     <View style={[styles.container, { width: size, height: size }]}>
       <Svg width={size} height={size}>
         <Defs>
-          {/* Purple gradient for Building - brighter */}
-          <LinearGradient id="purpleGradient" x1="0%" y1="100%" x2="100%" y2="0%">
-            <Stop offset="0%" stopColor="#A855F7" />
-            <Stop offset="100%" stopColor="#D946EF" />
-          </LinearGradient>
-          {/* Gold gradient for Marketing - brighter */}
+          {/* Gold gradient for Building - brighter */}
           <LinearGradient id="goldGradient" x1="100%" y1="0%" x2="0%" y2="100%">
             <Stop offset="0%" stopColor="#FB923C" />
             <Stop offset="100%" stopColor="#F97316" />
           </LinearGradient>
+          {/* Purple gradient for Marketing - brighter */}
+          <LinearGradient id="purpleGradient" x1="0%" y1="100%" x2="100%" y2="0%">
+            <Stop offset="0%" stopColor="#A855F7" />
+            <Stop offset="100%" stopColor="#D946EF" />
+          </LinearGradient>
         </Defs>
 
-        {/* Outer ring - Building (Purple) */}
+        {/* Outer ring - Marketing (Purple) */}
         {/* Background stroke */}
         <Circle
           cx={center}
@@ -141,7 +141,7 @@ export const ConcentricRings: React.FC<ConcentricRingsProps> = ({
           strokeWidth={outerStroke + 2}
           fill="none"
           strokeDasharray={outerCircumference}
-          strokeDashoffset={outerCircumference * (1 - building)}
+          strokeDashoffset={outerCircumference * (1 - marketing)}
           strokeLinecap="round"
           transform={`rotate(-90 ${center} ${center})`}
         />
@@ -154,12 +154,12 @@ export const ConcentricRings: React.FC<ConcentricRingsProps> = ({
           strokeWidth={outerStroke}
           fill="none"
           strokeDasharray={outerCircumference}
-          strokeDashoffset={outerCircumference * (1 - building)}
+          strokeDashoffset={outerCircumference * (1 - marketing)}
           strokeLinecap="round"
           transform={`rotate(-90 ${center} ${center})`}
         />
 
-        {/* Middle ring - Learning (Yellow/Cream) */}
+        {/* Middle ring - Building (Gold/Orange) */}
         {/* Background stroke */}
         <Circle
           cx={center}
@@ -174,53 +174,53 @@ export const ConcentricRings: React.FC<ConcentricRingsProps> = ({
           cx={center}
           cy={center}
           r={middleRadius}
-          stroke="#EFE1B7"
-          strokeWidth={middleStroke}
-          fill="none"
-        />
-        {/* Progress stroke */}
-        <Circle
-          cx={center}
-          cy={center}
-          r={middleRadius}
-          stroke="rgba(0,0,0,0.15)"
-          strokeWidth={middleStroke + 2}
-          fill="none"
-          strokeDasharray={middleCircumference}
-          strokeDashoffset={middleCircumference * (1 - learning)}
-          strokeLinecap="round"
-          transform={`rotate(-90 ${center} ${center})`}
-        />
-        {/* Progress fill */}
-        <Circle
-          cx={center}
-          cy={center}
-          r={middleRadius}
-          stroke="#FDE047"
-          strokeWidth={middleStroke}
-          fill="none"
-          strokeDasharray={middleCircumference}
-          strokeDashoffset={middleCircumference * (1 - learning)}
-          strokeLinecap="round"
-          transform={`rotate(-90 ${center} ${center})`}
-        />
-
-        {/* Inner ring - Marketing (Gold/Orange) */}
-        {/* Background stroke */}
-        <Circle
-          cx={center}
-          cy={center}
-          r={innerRadius}
-          stroke="rgba(0,0,0,0.08)"
-          strokeWidth={innerStroke + 2}
-          fill="none"
-        />
-        {/* Background fill */}
-        <Circle
-          cx={center}
-          cy={center}
-          r={innerRadius}
           stroke="#E9C08F"
+          strokeWidth={middleStroke}
+          fill="none"
+        />
+        {/* Progress stroke */}
+        <Circle
+          cx={center}
+          cy={center}
+          r={middleRadius}
+          stroke="rgba(0,0,0,0.15)"
+          strokeWidth={middleStroke + 2}
+          fill="none"
+          strokeDasharray={middleCircumference}
+          strokeDashoffset={middleCircumference * (1 - building)}
+          strokeLinecap="round"
+          transform={`rotate(-90 ${center} ${center})`}
+        />
+        {/* Progress fill */}
+        <Circle
+          cx={center}
+          cy={center}
+          r={middleRadius}
+          stroke="url(#goldGradient)"
+          strokeWidth={middleStroke}
+          fill="none"
+          strokeDasharray={middleCircumference}
+          strokeDashoffset={middleCircumference * (1 - building)}
+          strokeLinecap="round"
+          transform={`rotate(-90 ${center} ${center})`}
+        />
+
+        {/* Inner ring - Learning (Yellow/Cream) */}
+        {/* Background stroke */}
+        <Circle
+          cx={center}
+          cy={center}
+          r={innerRadius}
+          stroke="rgba(0,0,0,0.08)"
+          strokeWidth={innerStroke + 2}
+          fill="none"
+        />
+        {/* Background fill */}
+        <Circle
+          cx={center}
+          cy={center}
+          r={innerRadius}
+          stroke="#EFE1B7"
           strokeWidth={innerStroke}
           fill="none"
         />
@@ -233,7 +233,7 @@ export const ConcentricRings: React.FC<ConcentricRingsProps> = ({
           strokeWidth={innerStroke + 2}
           fill="none"
           strokeDasharray={innerCircumference}
-          strokeDashoffset={innerCircumference * (1 - marketing)}
+          strokeDashoffset={innerCircumference * (1 - learning)}
           strokeLinecap="round"
           transform={`rotate(-90 ${center} ${center})`}
         />
@@ -242,11 +242,11 @@ export const ConcentricRings: React.FC<ConcentricRingsProps> = ({
           cx={center}
           cy={center}
           r={innerRadius}
-          stroke="url(#goldGradient)"
+          stroke="#FDE047"
           strokeWidth={innerStroke}
           fill="none"
           strokeDasharray={innerCircumference}
-          strokeDashoffset={innerCircumference * (1 - marketing)}
+          strokeDashoffset={innerCircumference * (1 - learning)}
           strokeLinecap="round"
           transform={`rotate(-90 ${center} ${center})`}
         />

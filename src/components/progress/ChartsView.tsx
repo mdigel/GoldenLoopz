@@ -25,18 +25,18 @@ interface MetricDefinition {
 
 const baseMetrics: MetricDefinition[] = [
   {
-    id: 'buildingMinutes',
-    name: METRICS.building.label,
-    unitType: 'minutes',
-    color: METRICS.building.color,
-    getValue: (log) => log.buildingMinutes,
-  },
-  {
     id: 'marketingMinutes',
     name: METRICS.marketing.label,
     unitType: 'minutes',
     color: METRICS.marketing.color,
     getValue: (log) => log.marketingMinutes,
+  },
+  {
+    id: 'buildingMinutes',
+    name: METRICS.building.label,
+    unitType: 'minutes',
+    color: METRICS.building.color,
+    getValue: (log) => log.buildingMinutes,
   },
   {
     id: 'levelingUpMinutes',

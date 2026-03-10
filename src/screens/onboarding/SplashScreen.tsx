@@ -39,4 +39,8 @@ const styles = StyleSheet.create({
     width: 172,
     height: 172,
   },
+  logoWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

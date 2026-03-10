@@ -5,3 +5,4 @@ export { default as GoldenHoursIntroScreen } from './GoldenHoursIntroScreen';
 export { default as GoldenHoursScreen } from './GoldenHoursScreen';
 export { default as MetricsIntroScreen } from './MetricsIntroScreen';
 export { default as MetricsScreen } from './MetricsScreen';
+export { default as DataExportScreen } from './DataExportScreen';

@@ -7,7 +7,7 @@ import Animated, {
   withTiming,
   runOnJS,
 } from 'react-native-reanimated';
-import { ChevronLeft, ChevronRight, BarChart3 } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, BarChart3, Info } from 'lucide-react-native';
 import { useLogStore } from '../../state/logStore';
 import { useGoalsStore } from '../../state/goalsStore';
 import { useCustomMetricsStore, formatMetricValue } from '../../state/customMetricsStore';
@@ -16,7 +16,8 @@ import { formatMinutesToDisplay, minutesToHours } from '../../lib/dateUtils';
 import { ConcentricRings } from '../ui/CircularProgress';
 import { getWeek, startOfWeek, endOfWeek, format, addWeeks, isFuture } from 'date-fns';
 import { CustomMetric, SYSTEM_METRIC_IDS } from '../../types';
-import { calculateProRatedProgress, isFullVacationWeek, proRateGoal } from '../../lib/goalUtils';
+import { calculateProRatedProgress, isFullVacationWeek, proRateGoal, getTotalUnavailableDays, getFirstWeekUnavailableDays } from '../../lib/goalUtils';
+import { useOnboardingStore } from '../../state/onboardingStore';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SWIPE_THRESHOLD = 50;
@@ -25,11 +26,12 @@ interface LegendItemProps {
   color: string;
   label: string;
   value: string;
+  goal?: string;
   progress: number;
   iconSource?: number;
 }
 
-function LegendItem({ color, label, value, progress, iconSource }: LegendItemProps) {
+function LegendItem({ color, label, value, goal, progress, iconSource }: LegendItemProps) {
   return (
     <View style={styles.legendItem}>
       <View style={[styles.legendDot, { backgroundColor: color }]} />
@@ -40,7 +42,9 @@ function LegendItem({ color, label, value, progress, iconSource }: LegendItemPro
           )}
           <Text style={styles.legendLabel}>{label}</Text>
         </View>
-        <Text style={styles.legendValue}>{value}</Text>
+        <Text style={styles.legendValue}>
+          {value}{goal ? ` / ${goal}` : ''}
+        </Text>
       </View>
       <Text style={styles.legendProgress}>{Math.round(progress * 100)}%</Text>
     </View>
@@ -74,8 +78,10 @@ export default function WeeklyProgress() {
 
   const getWeekTotals = useLogStore((state) => state.getWeekTotals);
   const goals = useGoalsStore((state) => state.goals);
+  const getGoalsForDate = useGoalsStore((state) => state.getGoalsForDate);
   const customMetrics = useCustomMetricsStore((state) => state.metrics);
   const activeCustomMetrics = useMemo(() => customMetrics.filter(m => m.isActive), [customMetrics]);
+  const onboardingDate = useOnboardingStore((state) => state.onboardingCompletedDate);
 
   // Calculate the selected week's date
   const selectedWeekDate = useMemo(() => {
@@ -136,24 +142,44 @@ export default function WeeklyProgress() {
     transform: [{ translateX: translateX.value }],
   }));
 
-  // Calculate progress for each metric (0-1), pro-rated for vacation days
-  const { vacationDays, daysLogged } = weekTotals;
-  const isAllVacation = isFullVacationWeek(vacationDays, daysLogged);
+  // Get goals for the selected week (historical or current)
+  const currentCustomMetricGoals = useMemo(() => {
+    const map: Record<string, number> = {};
+    activeCustomMetrics.forEach(m => { map[m.id] = m.weeklyGoal; });
+    return map;
+  }, [activeCustomMetrics]);
+  const weekGoals = getGoalsForDate(selectedWeekDate, currentCustomMetricGoals);
 
-  const buildingProgress = isAllVacation
+  // Calculate progress for each metric (0-1), pro-rated for vacation + first-week
+  const { vacationDays, daysLogged } = weekTotals;
+  const unavailableDays = getTotalUnavailableDays(vacationDays, selectedWeekDate, onboardingDate);
+  const isAllVacation = isFullVacationWeek(vacationDays, daysLogged);
+  const isAllUnavailable = unavailableDays >= 7;
+
+  const buildingProgress = isAllVacation || isAllUnavailable
     ? 1
-    : calculateProRatedProgress(weekTotals.buildingMinutes, goals.buildingHours * 60, vacationDays) ?? 0;
-  const marketingProgress = isAllVacation
+    : calculateProRatedProgress(weekTotals.buildingMinutes, weekGoals.buildingHours * 60, unavailableDays) ?? 0;
+  const marketingProgress = isAllVacation || isAllUnavailable
     ? 1
-    : calculateProRatedProgress(weekTotals.marketingMinutes, goals.marketingHours * 60, vacationDays) ?? 0;
-  const learningProgress = isAllVacation
+    : calculateProRatedProgress(weekTotals.marketingMinutes, weekGoals.marketingHours * 60, unavailableDays) ?? 0;
+  const learningProgress = isAllVacation || isAllUnavailable
     ? 1
-    : calculateProRatedProgress(weekTotals.levelingUpMinutes, goals.levelingUpHours * 60, vacationDays) ?? 0;
+    : calculateProRatedProgress(weekTotals.levelingUpMinutes, weekGoals.levelingUpHours * 60, unavailableDays) ?? 0;
+
+  // Check if this is the user's first week (onboarding happened during this week)
+  const firstWeekDays = getFirstWeekUnavailableDays(selectedWeekDate, onboardingDate);
+  const isFirstWeek = firstWeekDays > 0 && firstWeekDays < 7;
+  const availableDays = 7 - firstWeekDays;
 
   const formatHours = (minutes: number) => {
     const hours = minutesToHours(minutes);
-    return `${hours.toFixed(1)}h`;
+    return hours % 1 === 0 ? `${hours}h` : `${hours.toFixed(1)}h`;
   };
+
+  // Pro-rated goals for display
+  const marketingGoalMinutes = proRateGoal(weekGoals.marketingHours * 60, unavailableDays);
+  const buildingGoalMinutes = proRateGoal(weekGoals.buildingHours * 60, unavailableDays);
+  const learningGoalMinutes = proRateGoal(weekGoals.levelingUpHours * 60, unavailableDays);
 
   return (
     <GestureDetector gesture={panGesture}>
@@ -191,6 +217,16 @@ export default function WeeklyProgress() {
           </View>
         </View>
 
+        {/* First Week Prorate Note */}
+        {isFirstWeek && (
+          <View style={styles.prorateNote}>
+            <Info size={14} color={colors.text.secondary} />
+            <Text style={styles.prorateNoteText}>
+              Goals are pro-rated to {availableDays} day{availableDays !== 1 ? 's' : ''} since you started mid-week.
+            </Text>
+          </View>
+        )}
+
         {/* Concentric Rings */}
         <View style={styles.ringsContainer}>
           <ConcentricRings
@@ -227,11 +263,23 @@ export default function WeeklyProgress() {
             resizeMode="contain"
           />
           <Text style={styles.goldenHoursSectionTitle}>Golden Hours</Text>
+          <Text style={styles.goldenHoursTotal}>
+            {formatHours(weekTotals.buildingMinutes + weekTotals.marketingMinutes + weekTotals.levelingUpMinutes)} / {formatHours(marketingGoalMinutes + buildingGoalMinutes + learningGoalMinutes)}
+          </Text>
         </View>
         <LegendItem
           color={colors.purple[500]}
+          label={METRICS.marketing.label}
+          value={formatHours(weekTotals.marketingMinutes)}
+          goal={formatHours(marketingGoalMinutes)}
+          progress={marketingProgress}
+          iconSource={require('../../../assets/megaphone.png')}
+        />
+        <LegendItem
+          color={colors.gold[500]}
           label={METRICS.building.label}
           value={formatHours(weekTotals.buildingMinutes)}
+          goal={formatHours(buildingGoalMinutes)}
           progress={buildingProgress}
           iconSource={require('../../../assets/pickaxe.png')}
         />
@@ -239,15 +287,9 @@ export default function WeeklyProgress() {
           color={colors.cream[400]}
           label={METRICS.levelingUp.label}
           value={formatHours(weekTotals.levelingUpMinutes)}
+          goal={formatHours(learningGoalMinutes)}
           progress={learningProgress}
           iconSource={require('../../../assets/goldenyoutube.png')}
-        />
-        <LegendItem
-          color={colors.gold[500]}
-          label={METRICS.marketing.label}
-          value={formatHours(weekTotals.marketingMinutes)}
-          progress={marketingProgress}
-          iconSource={require('../../../assets/megaphone.png')}
         />
       </View>
 
@@ -261,7 +303,8 @@ export default function WeeklyProgress() {
           <View style={styles.customMetricsGrid}>
             {activeCustomMetrics.map((metric) => {
               const total = getMetricTotal(metric, weekTotals);
-              const adjustedGoal = isAllVacation ? metric.weeklyGoal : proRateGoal(metric.weeklyGoal, vacationDays);
+              const historicalGoal = weekGoals.customMetricGoals[metric.id] ?? metric.weeklyGoal;
+              const adjustedGoal = (isAllVacation || isAllUnavailable) ? historicalGoal : proRateGoal(historicalGoal, unavailableDays);
               const isNegative = metric.category === 'negative';
               const progress = adjustedGoal > 0
                 ? Math.min(total / adjustedGoal, 1)
@@ -448,6 +491,12 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
+  goldenHoursTotal: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text.primary,
+    marginLeft: 8,
+  },
   // Custom Metrics Section
   customMetricsSection: {
     width: '100%',
@@ -524,5 +573,22 @@ const styles = StyleSheet.create({
   customMetricGoal: {
     fontSize: 11,
     color: colors.text.muted,
+  },
+  prorateNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.gold[50],
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    gap: 8,
+  },
+  prorateNoteText: {
+    fontSize: 13,
+    color: colors.text.primary,
+    flex: 1,
+    lineHeight: 18,
   },
 });

@@ -4,10 +4,16 @@ import {
   Text,
   StyleSheet,
   ScrollView,
+  Pressable,
   Dimensions,
   NativeSyntheticEvent,
   NativeScrollEvent,
 } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+} from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { colors } from '../../constants/colors';
 import { addDays, format, isToday, isSameDay } from 'date-fns';
@@ -32,6 +38,27 @@ export const WeekCalendarStrip: React.FC<WeekCalendarStripProps> = ({
   const scrollViewRef = useRef<ScrollView>(null);
   const hasScrolledToToday = useRef(false);
   const [centeredIndex, setCenteredIndex] = useState(DAYS_BEFORE);
+  const tooltipOpacity = useSharedValue(0);
+  const tooltipTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showSwipeTooltip = useCallback(() => {
+    if (tooltipTimer.current) clearTimeout(tooltipTimer.current);
+    tooltipOpacity.value = withTiming(1, { duration: 150 });
+    tooltipTimer.current = setTimeout(() => {
+      tooltipOpacity.value = withTiming(0, { duration: 300 });
+    }, 1500);
+  }, []);
+
+  const handleDayTap = useCallback((index: number) => {
+    if (index !== centeredIndex) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      showSwipeTooltip();
+    }
+  }, [centeredIndex, showSwipeTooltip]);
+
+  const tooltipStyle = useAnimatedStyle(() => ({
+    opacity: tooltipOpacity.value,
+  }));
 
   // Get today's date (normalized to midnight)
   const today = useMemo(() => {
@@ -107,7 +134,7 @@ export const WeekCalendarStrip: React.FC<WeekCalendarStripProps> = ({
           const isCentered = index === centeredIndex;
 
           return (
-            <View key={day.toISOString()} style={styles.dayContainer}>
+            <Pressable key={day.toISOString()} style={styles.dayContainer} onPress={() => handleDayTap(index)}>
               <Text style={[
                 styles.monthLabel,
                 isCentered && styles.centeredText,
@@ -128,7 +155,7 @@ export const WeekCalendarStrip: React.FC<WeekCalendarStripProps> = ({
               ]}>
                 {format(day, 'EEE')}
               </Text>
-            </View>
+            </Pressable>
           );
         })}
       </ScrollView>
@@ -154,6 +181,11 @@ export const WeekCalendarStrip: React.FC<WeekCalendarStripProps> = ({
         <View style={[styles.fadeLayer, { right: 60, opacity: 0.2 }]} />
         <View style={[styles.fadeLayer, { right: 72, opacity: 0.08 }]} />
       </View>
+
+      {/* Swipe tooltip — overlays on top of the purple pill */}
+      <Animated.View style={[styles.tooltip, tooltipStyle]} pointerEvents="none">
+        <Text style={styles.tooltipText}>← Swipe →</Text>
+      </Animated.View>
     </View>
   );
 };
@@ -235,5 +267,23 @@ const styles = StyleSheet.create({
   },
   todayText: {
     color: colors.purple[500],
+  },
+  tooltip: {
+    position: 'absolute',
+    bottom: 16,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 20,
+  },
+  tooltipText: {
+    backgroundColor: colors.gold[500],
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 6,
+    overflow: 'hidden',
   },
 });

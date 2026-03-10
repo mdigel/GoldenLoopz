@@ -5,6 +5,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
@@ -26,7 +27,7 @@ import Stepper from '../components/ui/Stepper';
 type MetricSettingsRouteProp = RouteProp<RootStackParamList, 'MetricSettings'>;
 
 const TIME_INCREMENT_OPTIONS = [5, 10, 15, 30, 60];
-const COUNT_INCREMENT_OPTIONS = [1, 2, 5];
+const COUNT_INCREMENT_OPTIONS = [0.5, 1, 2, 5];
 const HOUR_INCREMENT_OPTIONS = [1, 2, 4];
 
 export default function MetricSettingsScreen() {
@@ -36,7 +37,7 @@ export default function MetricSettingsScreen() {
 
   const { settings, updateSetting } = useMetricSettingsStore();
   const { goals, updateGoals } = useGoalsStore();
-  const { metrics, updateMetric } = useCustomMetricsStore();
+  const { metrics, updateMetric, deleteMetric } = useCustomMetricsStore();
   const currentSetting = settings[metricKey];
 
   const customMetric = useMemo(
@@ -173,6 +174,26 @@ export default function MetricSettingsScreen() {
     return null;
   }, [customMetric, goals, metricKey, updateGoals, updateMetric]);
 
+  const handleDeleteMetric = () => {
+    if (!customMetric) return;
+    const action = customMetric.isSystemMetric ? 'remove' : 'delete';
+    Alert.alert(
+      `${customMetric.isSystemMetric ? 'Remove' : 'Delete'} Metric`,
+      `Are you sure you want to ${action} "${customMetric.name}"? This will not delete any logged data.${customMetric.isSystemMetric ? ' You can re-add it later from Custom Metrics.' : ''}`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: customMetric.isSystemMetric ? 'Remove' : 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            deleteMetric(customMetric.id);
+            navigation.goBack();
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
@@ -252,6 +273,15 @@ export default function MetricSettingsScreen() {
             </View>
           </View>
         )}
+
+        {/* Delete/Remove Metric */}
+        {customMetric && (
+          <TouchableOpacity style={styles.deleteButton} onPress={handleDeleteMetric}>
+            <Text style={styles.deleteButtonText}>
+              {customMetric.isSystemMetric ? 'Remove' : 'Delete'} Metric
+            </Text>
+          </TouchableOpacity>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -324,5 +354,18 @@ const styles = StyleSheet.create({
   },
   stepperRow: {
     alignItems: 'flex-start',
+  },
+  deleteButton: {
+    alignItems: 'center',
+    paddingVertical: 14,
+    marginBottom: 32,
+    borderWidth: 1,
+    borderColor: colors.error,
+    borderRadius: 12,
+  },
+  deleteButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.error,
   },
 });

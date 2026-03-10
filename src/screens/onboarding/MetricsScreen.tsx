@@ -101,19 +101,26 @@ export default function MetricsScreen({ onFinish, onBack }: MetricsScreenProps) 
             </View>
 
             {metric.isActive && (
-              <View style={styles.goalRow}>
-                <Text style={styles.goalLabel}>
-                  Weekly {metric.category === 'negative' ? 'limit' : 'goal'}
-                </Text>
-                <Stepper
-                  value={metric.weeklyGoal}
-                  onChange={(value) => updateMetric(metric.id, { weeklyGoal: value })}
-                  increment={metric.unitType === 'minutes' ? 15 : 1}
-                  min={0}
-                  max={metric.unitType === 'minutes' ? 600 : 50}
-                  formatValue={(v) => formatGoalValue(v, metric.unitType)}
-                />
-              </View>
+              <>
+                <View style={styles.goalRow}>
+                  <Text style={styles.goalLabel}>
+                    Weekly {metric.category === 'negative' ? 'limit' : 'goal'}
+                  </Text>
+                  <Stepper
+                    value={metric.weeklyGoal}
+                    onChange={(value) => updateMetric(metric.id, { weeklyGoal: value })}
+                    increment={metric.unitType === 'minutes' ? 15 : 1}
+                    min={0}
+                    max={metric.unitType === 'minutes' ? 600 : 50}
+                    formatValue={(v) => formatGoalValue(v, metric.unitType)}
+                  />
+                </View>
+                {metric.weeklyGoal > 0 && (
+                  <Text style={styles.dailyAvgText}>
+                    ~{formatGoalValue(Math.round(metric.weeklyGoal / 7), metric.unitType)} per day
+                  </Text>
+                )}
+              </>
             )}
           </View>
         ))}
@@ -217,6 +224,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: colors.text.secondary,
+  },
+  dailyAvgText: {
+    fontSize: 13,
+    color: colors.text.muted,
+    textAlign: 'right',
+    marginTop: 6,
   },
   footer: {
     paddingHorizontal: 24,

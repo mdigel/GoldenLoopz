@@ -7,6 +7,11 @@ export type RootStackParamList = {
   Main: NavigatorScreenParams<MainTabParamList>;
   DayDetail: { date: string };
   MetricSettings: { metricKey: string };
+  GoldenHoursSettings: undefined;
+  GoldenHoursGoals: undefined;
+  CustomMetrics: undefined;
+  Feedback: undefined;
+  MeetMidas: undefined;
 };
 
 // Main Tab Navigator

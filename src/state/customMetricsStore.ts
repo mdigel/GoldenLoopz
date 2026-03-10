@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CustomMetric, MetricUnitType, SYSTEM_METRIC_IDS, LinkedDailyLogField, DailyLog } from '../types';
 import { colors } from '../constants/colors';
+import { useGoalsStore } from './goalsStore';
 
 interface CustomMetricsState {
   metrics: CustomMetric[];
@@ -30,7 +31,7 @@ const DEFAULT_SYSTEM_METRICS: CustomMetric[] = [
   {
     id: SYSTEM_METRIC_IDS.EXERCISE,
     name: 'Exercise',
-    description: 'Any intentional physical exercise. 20 min a day is 140 mins a week.',
+    description: 'Any intentional physical exercise.',
     unitType: 'minutes',
     category: 'positive',
     weeklyGoal: 150, // 2.5 hours per week
@@ -99,6 +100,16 @@ export const useCustomMetricsStore = create<CustomMetricsState>()(
             m.id === id ? { ...m, ...updates } : m
           ),
         }));
+        // Record goal snapshot if weeklyGoal changed
+        if (updates.weeklyGoal !== undefined) {
+          const customMetricGoals: Record<string, number> = {};
+          get().metrics.forEach((m) => {
+            if (m.isActive) {
+              customMetricGoals[m.id] = m.weeklyGoal;
+            }
+          });
+          useGoalsStore.getState().recordGoalSnapshot(customMetricGoals);
+        }
       },
 
       deleteMetric: (id) => {
@@ -134,7 +145,7 @@ export const useCustomMetricsStore = create<CustomMetricsState>()(
     {
       name: 'golden-loopz-custom-metrics',
       storage: createJSONStorage(() => AsyncStorage),
-      version: 3,
+      version: 4,
       migrate: (persistedState: any, version: number) => {
         // Migration: ensure system metrics exist for existing users
         if (version === 0 || !persistedState?.metrics) {
@@ -155,7 +166,7 @@ export const useCustomMetricsStore = create<CustomMetricsState>()(
           : persistedState;
 
         // Migration: refresh system metric copy (e.g., description updates)
-        if (version < 3) {
+        if (version < 4) {
           const systemMetricsById = new Map(
             DEFAULT_SYSTEM_METRICS.map((metric) => [metric.id, metric])
           );
@@ -235,7 +246,7 @@ export function formatMetricValue(value: number, unitType: MetricUnitType): stri
     case 'hours':
       return `${value}h`;
     case 'count':
-      return value.toString();
+      return Number.isInteger(value) ? value.toString() : value.toFixed(1);
     case 'boolean':
       return value === 1 ? 'Yes' : 'No';
     default:
@@ -276,7 +287,7 @@ export function getDefaultIncrement(unitType: MetricUnitType): number {
     case 'hours':
       return 1;
     case 'count':
-      return 1;
+      return 0.5;
     case 'boolean':
       return 1;
     default:

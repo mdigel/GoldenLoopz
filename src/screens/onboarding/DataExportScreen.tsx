@@ -5,12 +5,12 @@ import { ChevronLeft } from 'lucide-react-native';
 import { colors } from '../../constants/colors';
 import Button from '../../components/ui/Button';
 
-interface MetricsIntroScreenProps {
-  onNext: () => void;
+interface DataExportScreenProps {
+  onFinish: () => void;
   onBack: () => void;
 }
 
-export default function MetricsIntroScreen({ onNext, onBack }: MetricsIntroScreenProps) {
+export default function DataExportScreen({ onFinish, onBack }: DataExportScreenProps) {
   const renderBoldText = (text: string) => {
     const segments = text.split('**');
     return (
@@ -33,23 +33,23 @@ export default function MetricsIntroScreen({ onNext, onBack }: MetricsIntroScree
         <TouchableOpacity onPress={onBack} style={styles.backButton}>
           <ChevronLeft size={24} color={colors.text.primary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Track More</Text>
+        <Text style={styles.headerTitle}>Your Data</Text>
         <View style={styles.backButton} />
       </View>
 
       <View style={styles.content}>
         <View style={styles.card}>
           {renderBoldText(
-            'You can **track other habits** that help or hurt your side hustle goals.' +
-              '\n\n**Delete** these or **add more** in settings.'
+            'Your data is **always yours**.' +
+              '\n\nYou can **export all your logs as a CSV** file anytime from your profile page.'
           )}
         </View>
       </View>
 
       <View style={styles.footer}>
         <Button
-          title="Continue"
-          onPress={onNext}
+          title="Let's Go!"
+          onPress={onFinish}
           style={styles.ctaButton}
           textStyle={styles.ctaButtonText}
         />

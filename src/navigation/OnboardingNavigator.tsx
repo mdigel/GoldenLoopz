@@ -7,8 +7,11 @@ import {
   GoldenHoursScreen,
   MetricsIntroScreen,
   MetricsScreen,
+  DataExportScreen,
 } from '../screens/onboarding';
 import { useOnboardingStore } from '../state/onboardingStore';
+import { useGoalsStore } from '../state/goalsStore';
+import { useCustomMetricsStore } from '../state/customMetricsStore';
 import { colors } from '../constants/colors';
 
 type OnboardingStep =
@@ -17,13 +20,22 @@ type OnboardingStep =
   | 'goldenHoursIntro'
   | 'goldenHours'
   | 'metricsIntro'
-  | 'metrics';
+  | 'metrics'
+  | 'dataExport';
 
 export default function OnboardingNavigator() {
   const [currentStep, setCurrentStep] = useState<OnboardingStep>('welcome');
   const completeOnboarding = useOnboardingStore((state) => state.completeOnboarding);
+  const recordGoalSnapshot = useGoalsStore((state) => state.recordGoalSnapshot);
+  const customMetrics = useCustomMetricsStore((state) => state.metrics);
 
   const handleFinishOnboarding = () => {
+    // Record initial goal snapshot with onboarding goals
+    const customMetricGoals: Record<string, number> = {};
+    customMetrics.filter(m => m.isActive).forEach(m => {
+      customMetricGoals[m.id] = m.weeklyGoal;
+    });
+    recordGoalSnapshot(customMetricGoals);
     completeOnboarding();
   };
 
@@ -62,8 +74,15 @@ export default function OnboardingNavigator() {
       case 'metrics':
         return (
           <MetricsScreen
-            onFinish={handleFinishOnboarding}
+            onFinish={() => setCurrentStep('dataExport')}
             onBack={() => setCurrentStep('metricsIntro')}
+          />
+        );
+      case 'dataExport':
+        return (
+          <DataExportScreen
+            onFinish={handleFinishOnboarding}
+            onBack={() => setCurrentStep('metrics')}
           />
         );
       default:

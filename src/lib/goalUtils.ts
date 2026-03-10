@@ -1,7 +1,8 @@
+import { getWeekStart } from './dateUtils';
+
 /**
- * Utility functions for pro-rating goals based on vacation days.
- * When users take vacation, their weekly goals should be scaled down
- * proportionally so they aren't penalized for time off.
+ * Utility functions for pro-rating goals based on vacation days
+ * and first-week onboarding.
  */
 
 /**
@@ -65,4 +66,48 @@ export function calculateProRatedProgress(
  */
 export function isFullVacationWeek(vacationDays: number, daysLogged: number = 0): boolean {
   return vacationDays >= 7 || (daysLogged > 0 && vacationDays >= daysLogged);
+}
+
+/**
+ * Calculate the number of days before onboarding in a given week.
+ * Returns 0 for any week after the onboarding week.
+ * @param weekDate - Any date within the week to check
+ * @param onboardingDate - The date onboarding was completed (YYYY-MM-DD), or null
+ * @returns Number of days in the week before the user started (0-6)
+ */
+export function getFirstWeekUnavailableDays(weekDate: Date, onboardingDate: string | null): number {
+  if (!onboardingDate) return 0;
+
+  const weekStart = getWeekStart(weekDate);
+  const onboarding = new Date(onboardingDate + 'T00:00:00');
+
+  // If onboarding was before this week starts, no prorating needed
+  if (onboarding <= weekStart) return 0;
+
+  // If onboarding is after this week ends, entire week is unavailable
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekEnd.getDate() + 6);
+  if (onboarding > weekEnd) return 7;
+
+  // Calculate days between week start (Monday) and onboarding date
+  const diffMs = onboarding.getTime() - weekStart.getTime();
+  const unavailableDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  return unavailableDays;
+}
+
+/**
+ * Get total unavailable days for prorating (vacation + first-week onboarding).
+ * @param vacationDays - Number of vacation days in the week
+ * @param weekDate - Any date within the week
+ * @param onboardingDate - The onboarding completion date (YYYY-MM-DD), or null
+ * @returns Total unavailable days (capped at 7)
+ */
+export function getTotalUnavailableDays(
+  vacationDays: number,
+  weekDate: Date,
+  onboardingDate: string | null
+): number {
+  const firstWeekDays = getFirstWeekUnavailableDays(weekDate, onboardingDate);
+  return Math.min(vacationDays + firstWeekDays, 7);
 }
